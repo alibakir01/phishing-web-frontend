@@ -311,13 +311,13 @@
           <div>
             <h2 class="text-lg font-bold tracking-tight text-white sm:text-xl">URL analysis</h2>
             <p class="mt-1 text-xs text-slate-400 sm:text-sm">
-              Paste a target URL. The engine returns a calibrated score and human-readable threat context.
+              Paste a target URL for a real-time scan. The engine returns a calibrated risk score and human-readable threat intelligence.
             </p>
           </div>
           <span
             class="rounded-lg border border-white/10 bg-slate-900/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400"
           >
-            Live API
+            Real-time API
           </span>
         </div>
         <form id="analyzeForm" class="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-stretch">
@@ -958,7 +958,7 @@
       if (!trimmed || analysisInProgress) return;
 
       const payload = { url: trimmed };
-      console.log("Sunucuya giden istek:", payload);
+      console.log("Outbound request:", payload);
 
       analysisInProgress = true;
       setLoading(true);
@@ -974,23 +974,23 @@
         });
 
         if (!response.ok) {
-          throw new Error(`Sunucu hatasi: ${response.status}`);
+          throw new Error(`Server error: ${response.status}`);
         }
 
         const response_data = await response.json();
-        console.log("Sunucudan gelen cevap:", response_data);
+        console.log("API response:", response_data);
 
         if (
           typeof response_data.is_phishing !== "boolean" ||
           typeof response_data.confidence_score !== "number" ||
           !Array.isArray(response_data.reasons)
         ) {
-          throw new Error("Beklenmeyen API yanit semasi.");
+          throw new Error("Unexpected API response schema.");
         }
 
         renderResult(trimmed, response_data);
       } catch (error) {
-        console.error("Analiz hatasi:", error);
+        console.error("Analysis error:", error);
         showToast("Unable to reach the server. Please try again.");
       } finally {
         clearTimeout(timeoutId);

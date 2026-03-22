@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Domain Integrity Engine — URL Risk Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    integrity="sha512-SnH5WK+bZxgPHs44uWix+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkR4j8R9s+P7N6l7B6fYfQkA5+7h5p6R9Mkg=="
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+  <style>
+    :root {
+      --neon-cyan: #22d3ee;
+      --neon-green: #34d399;
+      --neon-red: #f87171;
+      --neon-orange: #fb923c;
+    }
+    body {
+      font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+      min-height: 100vh;
+      background-color: #020617;
+    }
+    .ambient-grid {
+      background-color: #020617;
+      background-image:
+        radial-gradient(980px 440px at 10% -12%, rgba(34, 211, 238, 0.14), transparent 58%),
+        radial-gradient(820px 420px at 92% 8%, rgba(167, 139, 250, 0.16), transparent 52%),
+        radial-gradient(640px 360px at 48% 96%, rgba(59, 130, 246, 0.1), transparent 55%);
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+    .bento-card {
+      border-radius: 1.5rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    }
+    .hero-pill {
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.35), 0 0 24px rgba(34, 211, 238, 0.18);
+    }
+    .input-cyber:focus {
+      outline: none;
+      border-color: rgba(34, 211, 238, 0.55);
+      box-shadow:
+        0 0 0 1px rgba(34, 211, 238, 0.45),
+        0 0 28px rgba(34, 211, 238, 0.28);
+    }
+    .fade-in-up {
+      animation: fadeInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    /* Premium risk dial: gradient arc + glass hub + severity glow */
+    .gauge-panel {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem 1.5rem 1.5rem;
+      border-radius: 1.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(15, 23, 42, 0.35) 100%);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2) inset, 0 20px 50px -20px rgba(0, 0, 0, 0.5);
+    }
+    .gauge-v2 {
+      position: relative;
+      width: 11.75rem;
+      height: 11.75rem;
+      border-radius: 50%;
+      flex-shrink: 0;
+      transition: background 0.9s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.9s cubic-bezier(0.4, 0, 0.2, 1),
+        filter 0.9s ease;
+    }
+    .gauge-v2::before {
+      content: "";
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      background: conic-gradient(from -90deg, transparent 0deg, rgba(255, 255, 255, 0.06) 180deg, transparent 360deg);
+      pointer-events: none;
+      z-index: 0;
+    }
+    #riskGauge[data-severity="safe"].gauge-v2 {
+      background: conic-gradient(
+        from -90deg,
+        #5eead4 0deg,
+        #2dd4bf clamp(0deg, calc(var(--value, 0) * 3.6deg - 1deg), 360deg),
+        rgba(51, 65, 85, 0.5) clamp(0deg, calc(var(--value, 0) * 3.6deg), 360deg),
+        rgba(15, 23, 42, 0.55) 360deg
+      );
+      box-shadow: 0 0 52px rgba(45, 212, 191, 0.22), 0 0 1px rgba(255, 255, 255, 0.12) inset;
+    }
+    #riskGauge[data-severity="warning"].gauge-v2 {
+      background: conic-gradient(
+        from -90deg,
+        #fcd34d 0deg,
+        #f59e0b clamp(0deg, calc(var(--value, 0) * 3.6deg - 1deg), 360deg),
+        rgba(51, 65, 85, 0.5) clamp(0deg, calc(var(--value, 0) * 3.6deg), 360deg),
+        rgba(15, 23, 42, 0.55) 360deg
+      );
+      box-shadow: 0 0 52px rgba(245, 158, 11, 0.2), 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    }
+    #riskGauge[data-severity="critical"].gauge-v2 {
+      background: conic-gradient(
+        from -90deg,
+        #fb7185 0deg,
+        #e11d48 clamp(0deg, calc(var(--value, 0) * 3.6deg - 1deg), 360deg),
+        rgba(51, 65, 85, 0.55) clamp(0deg, calc(var(--value, 0) * 3.6deg), 360deg),
+        rgba(15, 23, 42, 0.58) 360deg
+      );
+      box-shadow: 0 0 56px rgba(244, 63, 94, 0.32), 0 0 1px rgba(255, 255, 255, 0.08) inset;
+    }
+    .gauge-v2::after {
+      content: "";
+      position: absolute;
+      inset: 13px;
+      border-radius: 50%;
+      z-index: 1;
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+    }
+    .gauge-content {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .gauge-v2__value {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      text-shadow: 0 0 40px rgba(255, 255, 255, 0.12);
+    }
+    #riskGauge[data-severity="safe"] .gauge-v2__value {
+      color: #ecfdf5;
+    }
+    #riskGauge[data-severity="warning"] .gauge-v2__value {
+      color: #fffbeb;
+    }
+    #riskGauge[data-severity="critical"] .gauge-v2__value {
+      color: #fff1f2;
+    }
+    .skeleton {
+      position: relative;
+      overflow: hidden;
+      background: rgba(100, 116, 139, 0.22);
+    }
+    .skeleton::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      transform: translateX(-100%);
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+      animation: shimmer 1.25s infinite;
+    }
+    @keyframes shimmer {
+      100% {
+        transform: translateX(100%);
+      }
+    }
+    .toast-show {
+      animation: toastIn 0.35s ease forwards;
+    }
+    @keyframes toastIn {
+      from {
+        transform: translateY(10px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    #historyList > div.history-row {
+      transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+    #historyList > div.history-row:hover {
+      background-color: rgba(255, 255, 255, 0.07) !important;
+      border-color: rgba(96, 165, 250, 0.35) !important;
+      box-shadow: 0 0 24px rgba(59, 130, 246, 0.1);
+    }
+    #historyList button[type="button"].history-rebtn:hover {
+      box-shadow: 0 0 18px rgba(34, 211, 238, 0.22);
+    }
+    #historyList span.rounded-full[class*="border-emerald"] {
+      box-shadow: 0 0 14px rgba(52, 211, 153, 0.12);
+    }
+    #historyList span.rounded-full[class*="border-amber"] {
+      box-shadow: 0 0 14px rgba(251, 191, 36, 0.12);
+    }
+    #historyList span.rounded-full[class*="border-red"] {
+      color: rgb(251 113 133);
+      box-shadow: 0 0 14px rgba(244, 63, 94, 0.15);
+    }
+  </style>
+</head>
+<body class="ambient-grid overflow-x-hidden bg-slate-950 text-slate-100 antialiased">
+  <div class="pointer-events-none fixed inset-0 -z-10">
+    <div class="absolute top-[6%] left-[4%] h-[min(44vw,440px)] w-[min(44vw,440px)] rounded-full bg-cyan-500/15 blur-[110px]"></div>
+    <div class="absolute bottom-[4%] right-[3%] h-[min(50vw,500px)] w-[min(50vw,500px)] rounded-full bg-violet-600/18 blur-[120px]"></div>
+    <div class="absolute left-1/2 top-[38%] h-[320px] w-[320px] -translate-x-1/2 rounded-full bg-indigo-500/10 blur-[100px]"></div>
+  </div>
+
+  <main class="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-10 sm:px-6 sm:pb-20 sm:pt-14 lg:px-10 lg:pt-16">
+    <!-- Hero: Bento -->
+    <header class="mb-10 grid grid-cols-1 gap-4 lg:mb-14 lg:grid-cols-12 lg:gap-5">
+      <div
+        class="bento-card relative overflow-hidden p-6 shadow-2xl shadow-cyan-500/5 sm:p-8 lg:col-span-7 lg:p-10"
+      >
+        <div
+          class="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl"
+        ></div>
+        <div
+          class="pointer-events-none absolute -bottom-20 -left-10 h-48 w-48 rounded-full bg-violet-500/10 blur-3xl"
+        ></div>
+        <p
+          class="hero-pill relative inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-cyan-200/95 sm:text-[11px]"
+        >
+          <i class="fa-solid fa-network-wired text-cyan-400"></i>
+          Active Threat Intelligence
+        </p>
+        <h1
+          class="relative mt-6 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl xl:text-[3.35rem] xl:leading-tight"
+        >
+          Validate URL Integrity
+        </h1>
+        <p class="relative mt-4 max-w-xl text-sm leading-relaxed text-slate-400 sm:text-base">
+          Leverage XGBoost-powered machine learning and advanced heuristics to instantly quantify domain risk
+          and threat signals.
+        </p>
+        <div class="relative mt-8 flex flex-wrap gap-2">
+          <span
+            class="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-1.5 text-[11px] font-medium text-slate-400"
+          >
+            <i class="fa-solid fa-microchip mr-1.5 text-cyan-400/90"></i>
+            ML + rule fusion
+          </span>
+          <span
+            class="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-1.5 text-[11px] font-medium text-slate-400"
+          >
+            <i class="fa-solid fa-bolt mr-1.5 text-violet-300/90"></i>
+            Sub-second scoring
+          </span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-5 lg:grid-cols-1 lg:gap-5">
+        <div
+          class="bento-card flex flex-col justify-between p-5 shadow-xl shadow-violet-500/10 sm:p-6 lg:min-h-[140px]"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Coverage</span>
+            <span
+              class="flex h-9 w-9 items-center justify-center rounded-xl border border-violet-500/30 bg-violet-500/10 text-violet-300"
+            >
+              <i class="fa-solid fa-globe text-sm"></i>
+            </span>
+          </div>
+          <p class="mt-3 text-lg font-semibold text-white">Domain-wide signals</p>
+          <p class="mt-1 text-xs text-slate-500">Registered domain, path, and lexical features in one pass.</p>
+        </div>
+        <div
+          class="bento-card flex flex-col justify-between p-5 shadow-xl shadow-cyan-500/10 sm:p-6 lg:min-h-[140px]"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Operations</span>
+            <span
+              class="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+            >
+              <i class="fa-solid fa-shield-halved text-sm"></i>
+            </span>
+          </div>
+          <p class="mt-3 text-lg font-semibold text-white">Audit-ready output</p>
+          <p class="mt-1 text-xs text-slate-500">Structured rationale lines for SOC review workflows.</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5">
+      <div class="bento-card p-5 shadow-2xl shadow-blue-500/10 sm:p-6 lg:col-span-12 lg:p-7">
+        <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold tracking-tight text-white sm:text-xl">URL analysis</h2>
+            <p class="mt-1 text-xs text-slate-400 sm:text-sm">
+              Paste a target URL. The engine returns a calibrated score and human-readable threat context.
+            </p>
+          </div>
+          <span
+            class="rounded-lg border border-white/10 bg-slate-900/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400"
+          >
+            Live API
+          </span>
+        </div>
+        <form id="analyzeForm" class="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-stretch">
+          <label class="relative block min-w-0">
+            <i class="fa-solid fa-link pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+            <input
+              id="urlInput"
+              type="text"
+              required
+              placeholder="https://example.com/account/security-update"
+              class="input-cyber h-14 w-full rounded-2xl border border-white/10 bg-slate-950/50 pl-11 pr-4 text-sm text-slate-100 placeholder:text-slate-500 transition-all sm:text-base"
+            />
+          </label>
+          <button
+            id="analyzeBtn"
+            type="submit"
+            class="group inline-flex h-14 shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-8 text-sm font-bold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-500/35 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:scale-100 sm:text-base"
+          >
+            <i id="btnSpinner" class="fa-solid fa-spinner fa-spin hidden"></i>
+            <span id="btnText">Analyze URL</span>
+            <i class="fa-solid fa-bolt text-amber-200/90 opacity-80 transition group-hover:opacity-100"></i>
+          </button>
+        </form>
+      </div>
+
+      <div id="loadingSkeleton" class="hidden fade-in-up lg:col-span-12">
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5">
+          <div class="bento-card p-6 shadow-2xl shadow-violet-500/5 lg:col-span-4">
+            <div class="skeleton mb-5 h-4 w-28 rounded-lg"></div>
+            <div class="skeleton mx-auto h-40 w-40 rounded-full"></div>
+          </div>
+          <div class="bento-card p-6 shadow-2xl shadow-blue-500/5 lg:col-span-8">
+            <div class="skeleton mb-4 h-6 w-48 rounded-lg"></div>
+            <div class="skeleton mb-2 h-3.5 w-full rounded-md"></div>
+            <div class="skeleton mb-2 h-3.5 w-[94%] rounded-md"></div>
+            <div class="skeleton h-3.5 w-[82%] rounded-md"></div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="resultSection"
+        class="hidden fade-in-up grid grid-cols-1 gap-4 lg:col-span-12 lg:grid-cols-12 lg:gap-5"
+      >
+        <article
+          class="bento-card flex flex-col items-center justify-center p-6 shadow-2xl shadow-emerald-500/5 sm:p-7 lg:col-span-4"
+        >
+          <div class="mb-4 flex w-full items-center justify-between gap-2 px-1">
+            <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">Risk score</p>
+            <span
+              id="gaugeSeverityChip"
+              class="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+            >
+              —
+            </span>
+          </div>
+          <div class="gauge-panel w-full max-w-[280px] justify-center">
+            <div id="riskGauge" class="gauge-v2" data-severity="safe" style="--value: 0">
+              <div class="gauge-content px-2 text-center">
+                <div
+                  id="gaugeValue"
+                  class="gauge-v2__value font-mono text-4xl font-bold sm:text-5xl lg:text-[3.25rem] lg:leading-none"
+                >
+                  0%
+                </div>
+              </div>
+            </div>
+          </div>
+          <p id="riskSubText" class="mt-5 max-w-[260px] text-center text-xs leading-relaxed text-slate-400">
+            Awaiting analysis.
+          </p>
+        </article>
+
+        <article
+          id="statusCard"
+          class="bento-card p-6 shadow-2xl shadow-blue-500/10 sm:p-7 lg:col-span-8"
+        >
+          <div class="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4">
+            <div class="min-w-0 flex-1">
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Analyzed URL</p>
+              <p id="analyzedUrl" class="mt-1 break-all font-mono text-sm text-slate-100"></p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span
+                id="statusBadge"
+                class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold"
+              >
+                <i id="statusIcon" class="fa-solid fa-shield"></i>
+                <span id="statusText">Awaiting result</span>
+              </span>
+            </div>
+          </div>
+          <p id="severityHint" class="mb-5 text-xs text-slate-400"></p>
+
+          <div>
+            <h3 class="mb-3 flex items-center gap-2 text-sm font-bold text-white">
+              <span
+                class="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400"
+              >
+                <i class="fa-solid fa-file-waveform text-xs"></i>
+              </span>
+              Threat intelligence report
+            </h3>
+            <ul id="reasonsList" class="space-y-2"></ul>
+
+            <div
+              class="mt-5 border-t border-white/10 pt-4"
+            >
+              <label for="feedbackComments" class="mb-2 block text-[11px] font-medium uppercase tracking-wider text-slate-500"
+                >Optional note for reviewers</label
+              >
+              <textarea
+                id="feedbackComments"
+                rows="2"
+                maxlength="2000"
+                placeholder="Describe why you believe this result is wrong (optional)…"
+                class="mb-3 w-full resize-y rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:border-cyan-500/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+              ></textarea>
+              <button
+                type="button"
+                id="feedbackReportBtn"
+                class="group inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-transparent px-4 py-2.5 text-xs font-semibold text-slate-400 transition-all hover:border-cyan-400/40 hover:bg-cyan-500/5 hover:text-cyan-200 hover:shadow-[0_0_20px_rgba(34,211,238,0.12)] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-transparent disabled:text-slate-500 disabled:shadow-none sm:w-auto"
+              >
+                <span id="feedbackReportIconWrap" class="inline-flex shrink-0">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4 opacity-70 transition group-hover:opacity-100 group-hover:text-amber-300/90"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    aria-hidden="true"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+                    />
+                  </svg>
+                </span>
+                <span id="feedbackReportBtnLabel">Report incorrect result</span>
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div
+        id="historySection"
+        class="bento-card p-5 shadow-2xl shadow-violet-500/10 sm:p-6 lg:col-span-12 lg:p-7"
+      >
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 class="flex items-center gap-2 text-sm font-bold text-white sm:text-base">
+            <span
+              class="flex h-8 w-8 items-center justify-center rounded-xl border border-violet-500/30 bg-violet-500/10 text-violet-300"
+            >
+              <i class="fa-solid fa-clock-rotate-left text-sm"></i>
+            </span>
+            Scan history
+          </h3>
+          <div class="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              id="exportHistoryBtn"
+              disabled
+              class="group inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-blue-500/35 bg-blue-500/10 px-3.5 text-xs font-semibold text-blue-200 transition-all hover:border-blue-400/60 hover:bg-blue-500/20 hover:shadow-lg hover:shadow-blue-500/15 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-blue-500/10 disabled:hover:shadow-none"
+              title="Export scan history as JSON"
+              aria-label="Export JSON"
+            >
+              <i class="fa-solid fa-file-export transition group-hover:text-white"></i>
+              <span class="hidden sm:inline">Export JSON</span>
+            </button>
+            <button
+              type="button"
+              id="clearHistoryBtn"
+              class="group inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rose-500/35 bg-slate-900/50 text-rose-200/90 transition-all hover:border-rose-400/55 hover:bg-rose-500/15 hover:text-rose-100 hover:shadow-lg hover:shadow-rose-500/20"
+              title="Clear history"
+              aria-label="Clear history"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-[18px] w-[18px] shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.75"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p
+          id="historyEmpty"
+          class="rounded-2xl border border-dashed border-white/10 bg-slate-950/30 py-10 text-center text-sm text-slate-500"
+        >
+          No scans yet — run your first URL analysis above.
+        </p>
+        <div id="historyList" class="hidden flex flex-col gap-2"></div>
+      </div>
+    </div>
+  </main>
+
+  <div
+    id="toast"
+    class="glass fixed bottom-5 right-5 z-50 hidden max-w-sm rounded-2xl border border-red-400/30 p-4 text-sm text-red-200 shadow-2xl shadow-red-500/20"
+  >
+    <div class="flex items-start gap-3">
+      <i id="toastIcon" class="fa-solid fa-triangle-exclamation mt-0.5 shrink-0"></i>
+      <p id="toastText">Unable to reach the server. Please try again.</p>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "https://phishing-api-backend-2wnv.onrender.com/predict";
+    const FEEDBACK_URL = API_URL.replace(/\/predict$/, "/feedback");
+
+    const FEEDBACK_ALERT_ICON_SVG = `
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-70 transition group-hover:opacity-100 group-hover:text-amber-300/90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>`;
+    const FEEDBACK_SUCCESS_ICON_SVG = `
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>`;
+
+    let lastAnalysisSnapshot = null;
+
+    const analyzeForm = document.getElementById("analyzeForm");
+    const urlInput = document.getElementById("urlInput");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const btnSpinner = document.getElementById("btnSpinner");
+    const btnText = document.getElementById("btnText");
+    const loadingSkeleton = document.getElementById("loadingSkeleton");
+    const resultSection = document.getElementById("resultSection");
+    const analyzedUrlEl = document.getElementById("analyzedUrl");
+    const riskGauge = document.getElementById("riskGauge");
+    const gaugeSeverityChip = document.getElementById("gaugeSeverityChip");
+    const gaugeValue = document.getElementById("gaugeValue");
+    const riskSubText = document.getElementById("riskSubText");
+    const statusBadge = document.getElementById("statusBadge");
+    const statusIcon = document.getElementById("statusIcon");
+    const statusText = document.getElementById("statusText");
+    const severityHint = document.getElementById("severityHint");
+    const reasonsList = document.getElementById("reasonsList");
+    const toast = document.getElementById("toast");
+    const toastText = document.getElementById("toastText");
+    const historyEmpty = document.getElementById("historyEmpty");
+    const historyList = document.getElementById("historyList");
+    const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+    const exportHistoryBtn = document.getElementById("exportHistoryBtn");
+    const toastIcon = document.getElementById("toastIcon");
+    const feedbackReportBtn = document.getElementById("feedbackReportBtn");
+    const feedbackReportBtnLabel = document.getElementById("feedbackReportBtnLabel");
+    const feedbackReportIconWrap = document.getElementById("feedbackReportIconWrap");
+    const feedbackComments = document.getElementById("feedbackComments");
+
+    const FEEDBACK_BTN_CLASSES_DEFAULT =
+      "group inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-transparent px-4 py-2.5 text-xs font-semibold text-slate-400 transition-all hover:border-cyan-400/40 hover:bg-cyan-500/5 hover:text-cyan-200 hover:shadow-[0_0_20px_rgba(34,211,238,0.12)] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-transparent disabled:text-slate-500 disabled:shadow-none sm:w-auto";
+    const FEEDBACK_BTN_CLASSES_SUCCESS =
+      "inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold text-emerald-200 sm:w-auto";
+
+    const HISTORY_KEY = "phishing_scan_history";
+    const MAX_HISTORY_ITEMS = 50;
+    let analysisInProgress = false;
+
+    function notify(message, kind = "error") {
+      toastText.textContent = message;
+      const base =
+        "fixed bottom-5 right-5 z-50 max-w-sm glass rounded-2xl p-4 text-sm shadow-2xl toast-show";
+      if (kind === "success") {
+        toast.className = `${base} border border-emerald-400/35 text-emerald-100 shadow-emerald-500/20`;
+        toastIcon.className = "fa-solid fa-circle-check mt-0.5 shrink-0 text-emerald-300";
+      } else if (kind === "info") {
+        toast.className = `${base} border border-cyan-400/35 text-cyan-100 shadow-cyan-500/20`;
+        toastIcon.className = "fa-solid fa-circle-info mt-0.5 shrink-0 text-cyan-300";
+      } else {
+        toast.className = `${base} border border-red-400/30 text-red-200 shadow-red-500/20`;
+        toastIcon.className = "fa-solid fa-triangle-exclamation mt-0.5 shrink-0";
+      }
+      toast.classList.remove("hidden");
+      setTimeout(() => {
+        toast.classList.add("hidden");
+        toast.classList.remove("toast-show");
+      }, 3600);
+    }
+
+    function showToast(message) {
+      notify(message, "error");
+    }
+
+    function resetFeedbackUI() {
+      if (!feedbackReportBtn || !feedbackReportBtnLabel || !feedbackReportIconWrap) return;
+      feedbackReportBtn.disabled = false;
+      feedbackReportBtn.className = FEEDBACK_BTN_CLASSES_DEFAULT;
+      feedbackReportBtnLabel.textContent = "Report incorrect result";
+      feedbackReportIconWrap.innerHTML = FEEDBACK_ALERT_ICON_SVG;
+      if (feedbackComments) {
+        feedbackComments.disabled = false;
+        feedbackComments.value = "";
+      }
+    }
+
+    function setFeedbackSubmittedUI() {
+      if (!feedbackReportBtn || !feedbackReportBtnLabel || !feedbackReportIconWrap) return;
+      feedbackReportBtn.disabled = true;
+      feedbackReportBtn.className = FEEDBACK_BTN_CLASSES_SUCCESS;
+      feedbackReportIconWrap.innerHTML = FEEDBACK_SUCCESS_ICON_SVG;
+      feedbackReportBtnLabel.textContent = "Reported successfully. Logged for review.";
+      if (feedbackComments) feedbackComments.disabled = true;
+    }
+
+    function setLoading(isLoading) {
+      analyzeBtn.disabled = isLoading;
+      btnSpinner.classList.toggle("hidden", !isLoading);
+      btnText.textContent = isLoading ? "Analyzing…" : "Analyze URL";
+      loadingSkeleton.classList.toggle("hidden", !isLoading);
+      if (isLoading) {
+        resultSection.classList.add("hidden");
+      }
+    }
+
+    function clampScore(score) {
+      if (!Number.isFinite(score)) return 0;
+      return Math.max(0, Math.min(100, score));
+    }
+
+    function normalizeHistoryStatus(label) {
+      const legacy = { Güvenli: "Safe", Şüpheli: "Suspicious", Zararlı: "Malicious" };
+      return legacy[label] || label || "Safe";
+    }
+
+    /** History row: Safe / Suspicious / Malicious */
+    function getHistoryStatusLabel(score, isPhishing, hasReasons) {
+      const s = clampScore(Number(score));
+      if (!hasReasons) return "Safe";
+      if (!isPhishing) return "Safe";
+      if (s >= 70) return "Malicious";
+      return "Suspicious";
+    }
+
+    function getHistoryBadgeClasses(statusLabel) {
+      const s = normalizeHistoryStatus(statusLabel);
+      if (s === "Safe") {
+        return "border-emerald-400/50 bg-emerald-500/15 text-emerald-300";
+      }
+      if (s === "Suspicious") {
+        return "border-amber-400/50 bg-amber-500/15 text-amber-300";
+      }
+      return "border-red-400/50 bg-red-500/15 text-red-300";
+    }
+
+    function loadHistoryFromStorage() {
+      try {
+        const raw = localStorage.getItem(HISTORY_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveHistoryToStorage(items) {
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
+      } catch (e) {
+        console.warn("Could not persist scan history:", e);
+      }
+    }
+
+    function appendScanToHistory(url, responseData) {
+      const score = clampScore(Number(responseData.confidence_score));
+      const hasReasons = Array.isArray(responseData.reasons) && responseData.reasons.length > 0;
+      const isPhishing = Boolean(responseData.is_phishing);
+      const status = getHistoryStatusLabel(score, isPhishing, hasReasons);
+      const entry = {
+        url,
+        confidence_score: score,
+        at: new Date().toISOString(),
+        status
+      };
+      const prev = loadHistoryFromStorage();
+      const next = [entry, ...prev.filter((x) => x && x.url !== url)].slice(0, MAX_HISTORY_ITEMS);
+      saveHistoryToStorage(next);
+      renderHistoryUI();
+    }
+
+    function formatHistoryDate(iso) {
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return iso;
+        return d.toLocaleString("en-US", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      } catch {
+        return iso;
+      }
+    }
+
+    function renderHistoryUI() {
+      const items = loadHistoryFromStorage();
+      if (exportHistoryBtn) {
+        exportHistoryBtn.disabled = !items.length;
+      }
+      if (!items.length) {
+        historyEmpty.classList.remove("hidden");
+        historyList.classList.add("hidden");
+        historyList.innerHTML = "";
+        return;
+      }
+      historyEmpty.classList.add("hidden");
+      historyList.classList.remove("hidden");
+      historyList.innerHTML = "";
+
+      const headerRow = document.createElement("div");
+      headerRow.className =
+        "history-header mb-1 hidden grid-cols-12 gap-3 border-b border-white/10 px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:grid";
+      headerRow.innerHTML = `
+        <div class="col-span-5">URL</div>
+        <div class="col-span-3">Date</div>
+        <div class="col-span-2 text-center">Risk</div>
+        <div class="col-span-2 text-right">Action</div>
+      `;
+      historyList.appendChild(headerRow);
+
+      items.forEach((item) => {
+        if (!item || !item.url) return;
+        const displayStatus = normalizeHistoryStatus(item.status);
+        const badgeClass = getHistoryBadgeClasses(displayStatus);
+        const pct = Number.isFinite(item.confidence_score)
+          ? item.confidence_score.toFixed(1)
+          : "0.0";
+        const row = document.createElement("div");
+        row.className =
+          "history-row grid grid-cols-1 gap-3 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-3 transition-colors sm:grid-cols-12 sm:items-center";
+
+        const urlCell = document.createElement("div");
+        urlCell.className = "min-w-0 sm:col-span-5";
+        const urlEl = document.createElement("p");
+        urlEl.className = "break-all font-mono text-xs text-slate-200";
+        urlEl.textContent = item.url;
+        urlCell.appendChild(urlEl);
+
+        const dateCell = document.createElement("div");
+        dateCell.className = "sm:col-span-3";
+        const dateEl = document.createElement("p");
+        dateEl.className = "text-[11px] text-slate-500 sm:text-xs";
+        dateEl.textContent = formatHistoryDate(item.at || "");
+        dateCell.appendChild(dateEl);
+
+        const riskCell = document.createElement("div");
+        riskCell.className = "flex items-center sm:col-span-2 sm:justify-center";
+        const badge = document.createElement("span");
+        badge.className = `inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${badgeClass}`;
+        badge.innerHTML = `<span>${displayStatus}</span><span class="opacity-90">%${pct}</span>`;
+        riskCell.appendChild(badge);
+
+        const actionCell = document.createElement("div");
+        actionCell.className = "flex items-center justify-start gap-2 sm:col-span-2 sm:justify-end";
+        const reBtn = document.createElement("button");
+        reBtn.type = "button";
+        reBtn.className =
+          "history-rebtn inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-cyan-200 transition-colors hover:border-cyan-400/60 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-45";
+        reBtn.innerHTML =
+          '<i class="fa-solid fa-rotate"></i><span class="hidden sm:inline">Re-analyze</span><span class="sm:hidden">Redo</span>';
+        reBtn.title = "Re-run analysis for this URL";
+        reBtn.addEventListener("click", () => {
+          if (analysisInProgress) return;
+          urlInput.value = item.url;
+          urlInput.focus();
+          runAnalysis(item.url);
+        });
+        actionCell.appendChild(reBtn);
+
+        row.appendChild(urlCell);
+        row.appendChild(dateCell);
+        row.appendChild(riskCell);
+        row.appendChild(actionCell);
+        historyList.appendChild(row);
+      });
+    }
+
+    function clearHistory() {
+      try {
+        localStorage.removeItem(HISTORY_KEY);
+      } catch (e) {
+        console.warn("Could not clear history:", e);
+      }
+      renderHistoryUI();
+    }
+
+    function exportHistoryJson() {
+      const items = loadHistoryFromStorage();
+      if (!items.length) {
+        notify("Nothing to export yet.", "info");
+        return;
+      }
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        version: 1,
+        app: "Phishing Shield — scan history",
+        scans: items
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json;charset=utf-8"
+      });
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      a.href = URL.createObjectURL(blob);
+      a.download = `phishing-scan-history-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      notify("Scan history exported as JSON.", "success");
+    }
+
+    function getResultTheme(score, isPhishing, hasReasons) {
+      if (!hasReasons) {
+        return {
+          label: "Secure connection",
+          icon: "fa-shield-halved",
+          badgeClass: "border-emerald-400/40 bg-emerald-500/15 text-emerald-300",
+          hint: "No significant risk patterns detected"
+        };
+      }
+
+      if (!isPhishing) {
+        return {
+          label: "Secure connection",
+          icon: "fa-shield-halved",
+          badgeClass: "border-emerald-400/40 bg-emerald-500/15 text-emerald-300",
+          hint: "Higher scores indicate stronger confidence in a benign classification"
+        };
+      }
+
+      if (score >= 70) {
+        return {
+          label: "Critical threat",
+          icon: "fa-skull-crossbones",
+          badgeClass: "border-red-400/40 bg-red-500/15 text-red-300",
+          hint: "High-probability phishing"
+        };
+      }
+
+      return {
+        label: "Suspicious",
+        icon: "fa-triangle-exclamation",
+        badgeClass: "border-orange-400/40 bg-orange-500/15 text-orange-300",
+        hint: "Elevated threat indicators detected"
+      };
+    }
+
+    function renderReasons(reasons) {
+      reasonsList.innerHTML = "";
+      const hasReasons = Array.isArray(reasons) && reasons.length > 0;
+      const data = hasReasons ? reasons : ["No significant risk patterns detected"];
+
+      data.forEach((reason, index) => {
+        const li = document.createElement("li");
+        li.className = "flex items-start gap-3 rounded-lg border border-white/10 bg-slate-900/50 px-3 py-2";
+        li.innerHTML = `
+          <i class="fa-solid ${hasReasons ? "fa-bug" : "fa-circle-check"} mt-0.5 ${hasReasons ? "text-orange-300" : "text-emerald-300"}"></i>
+          <div class="flex-1">
+            <p class="text-xs text-slate-300 leading-relaxed">${reason}</p>
+            <p class="text-[11px] text-slate-500 mt-1">Log #${index + 1}</p>
+          </div>
+        `;
+        reasonsList.appendChild(li);
+      });
+    }
+
+    function renderResult(url, responseData) {
+      const score = clampScore(Number(responseData.confidence_score));
+      const hasReasons = Array.isArray(responseData.reasons) && responseData.reasons.length > 0;
+      const isPhishing = Boolean(responseData.is_phishing);
+      const effectiveIsPhishing = hasReasons ? isPhishing : false;
+      const theme = getResultTheme(score, isPhishing, hasReasons);
+
+      analyzedUrlEl.textContent = url;
+      riskGauge.style.setProperty("--value", score.toFixed(2));
+      let dialSeverity = "safe";
+      if (effectiveIsPhishing) {
+        dialSeverity = score >= 70 ? "critical" : "warning";
+      }
+      riskGauge.setAttribute("data-severity", dialSeverity);
+      gaugeValue.textContent = `${score.toFixed(1)}%`;
+      if (gaugeSeverityChip) {
+        const chipBase =
+          "rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider";
+        if (dialSeverity === "safe") {
+          gaugeSeverityChip.textContent = "Benign";
+          gaugeSeverityChip.className = `${chipBase} border-emerald-500/30 bg-emerald-500/10 text-emerald-300/95`;
+        } else if (dialSeverity === "warning") {
+          gaugeSeverityChip.textContent = "Elevated";
+          gaugeSeverityChip.className = `${chipBase} border-amber-500/35 bg-amber-500/10 text-amber-200`;
+        } else {
+          gaugeSeverityChip.textContent = "Critical";
+          gaugeSeverityChip.className = `${chipBase} border-rose-500/40 bg-rose-500/10 text-rose-200`;
+        }
+      }
+      if (effectiveIsPhishing) {
+        riskSubText.textContent = "Score reflects estimated threat likelihood.";
+      } else {
+        riskSubText.textContent = "Score reflects confidence in a benign classification.";
+      }
+
+      statusBadge.className = `inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${theme.badgeClass}`;
+      statusIcon.className = `fa-solid ${theme.icon}`;
+      statusText.textContent = theme.label;
+      severityHint.textContent = theme.hint;
+
+      renderReasons(responseData.reasons);
+      lastAnalysisSnapshot = {
+        url,
+        confidence_score: Number(responseData.confidence_score),
+        predicted_as_phishing: Boolean(responseData.is_phishing)
+      };
+      resetFeedbackUI();
+
+      resultSection.classList.remove("hidden");
+      resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
+      appendScanToHistory(url, responseData);
+    }
+
+    async function runAnalysis(userUrl) {
+      const trimmed = (userUrl || "").trim();
+      if (!trimmed || analysisInProgress) return;
+
+      const payload = { url: trimmed };
+      console.log("Sunucuya giden istek:", payload);
+
+      analysisInProgress = true;
+      setLoading(true);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          throw new Error(`Sunucu hatasi: ${response.status}`);
+        }
+
+        const response_data = await response.json();
+        console.log("Sunucudan gelen cevap:", response_data);
+
+        if (
+          typeof response_data.is_phishing !== "boolean" ||
+          typeof response_data.confidence_score !== "number" ||
+          !Array.isArray(response_data.reasons)
+        ) {
+          throw new Error("Beklenmeyen API yanit semasi.");
+        }
+
+        renderResult(trimmed, response_data);
+      } catch (error) {
+        console.error("Analiz hatasi:", error);
+        showToast("Unable to reach the server. Please try again.");
+      } finally {
+        clearTimeout(timeoutId);
+        analysisInProgress = false;
+        setLoading(false);
+      }
+    }
+
+    analyzeForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const userUrl = urlInput.value.trim();
+      if (!userUrl) return;
+      await runAnalysis(userUrl);
+    });
+
+    clearHistoryBtn.addEventListener("click", () => {
+      clearHistory();
+    });
+
+    exportHistoryBtn.addEventListener("click", () => {
+      exportHistoryJson();
+    });
+
+    if (feedbackReportBtn) {
+      feedbackReportBtn.addEventListener("click", async () => {
+        if (!lastAnalysisSnapshot || feedbackReportBtn.disabled) return;
+        const note = feedbackComments && feedbackComments.value ? feedbackComments.value.trim() : "";
+        const body = {
+          url: lastAnalysisSnapshot.url,
+          confidence_score: lastAnalysisSnapshot.confidence_score,
+          predicted_as_phishing: lastAnalysisSnapshot.predicted_as_phishing,
+          user_comments: note.length ? note : null
+        };
+        try {
+          const res = await fetch(FEEDBACK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          });
+          if (!res.ok) throw new Error(String(res.status));
+          setFeedbackSubmittedUI();
+        } catch (e) {
+          console.error("Feedback submit failed:", e);
+          showToast("Could not submit feedback. Check your connection.");
+        }
+      });
+    }
+
+    renderHistoryUI();
+  </script>
+</body>
+</html>
